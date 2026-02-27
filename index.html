@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>WhatsApp Smart Sender</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to bottom right, #6b4eff, #a18aff);
+      color: #333;
+    }
+
+    .card {
+      background: #fff;
+      max-width: 460px;
+      margin: 60px auto;
+      padding: 24px;
+      border-radius: 20px;
+      box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+    }
+
+    h2 {
+      text-align: center;
+      color: #222;
+      margin-bottom: 4px;
+    }
+
+    p.sub {
+      text-align: center;
+      font-size: 14px;
+      color: #666;
+      margin-top: 0;
+    }
+
+    input, textarea {
+      width: 100%;
+      padding: 12px;
+      margin-top: 12px;
+      font-size: 15px;
+      border: 1px solid #ccc;
+      border-radius: 10px;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 20px;
+      padding: 14px;
+      font-size: 16px;
+      font-weight: bold;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      transition: 0.3s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+
+    button.active {
+      background-color: #25D366;
+      color: white;
+    }
+
+    button.inactive {
+      background-color: #ccc;
+      color: #666;
+      cursor: not-allowed;
+    }
+
+    #status {
+      margin-top: 14px;
+      font-size: 14px;
+      text-align: center;
+    }
+
+    .note-area, .multi-area {
+      margin-top: 28px;
+    }
+
+    .note-area label, .multi-area label {
+      font-weight: 600;
+      margin-bottom: 6px;
+      display: block;
+      color: #444;
+    }
+
+    .note-area textarea, .multi-area textarea {
+      height: 80px;
+      resize: vertical;
+    }
+
+    .whatsapp-icon {
+      width: 20px;
+      height: 20px;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h2>WhatsApp Smart Sender</h2>
+    <p class="sub">Kirim ke 1 atau banyak nomor dengan jeda aman</p>
+
+    <label for="phone">Satu Nomor WhatsApp (format 62...)</label>
+    <input type="text" id="phone" placeholder="Contoh: 6281234567890" />
+
+    <label for="multi">Atau masukkan banyak nomor (pisah baris):</label>
+    <textarea id="multi" placeholder="6281234567890\n628111223344\n628999888777"></textarea>
+
+    <label for="message">Pesan yang ingin dikirim:</label>
+    <textarea id="message" placeholder="Teks sapaan / pesan"></textarea>
+
+    <button id="sendBtn" class="active" onclick="sendMessage()">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" class="whatsapp-icon" />
+      Kirim via WhatsApp
+    </button>
+
+    <p id="status">Siap kirim kapan saja</p>
+
+    <div class="note-area">
+      <label for="note">Catatan Pribadi:</label>
+      <textarea id="note" placeholder="Tulis catatan tambahan di sini..."></textarea>
+    </div>
+  </div>
+
+  <script>
+    let waiting = false;
+    let cooldownSequence = [300, 180, 240, 120, 300];
+    let cooldownIndex = 0;
+    let queue = [];
+    let queueIndex = 0;
+
+    window.onload = () => {
+      const savedNote = localStorage.getItem('wa_note');
+      if (savedNote) document.getElementById('note').value = savedNote;
+    };
+
+    document.getElementById('note').addEventListener('input', function () {
+      localStorage.setItem('wa_note', this.value);
+    });
+
+    function sendMessage() {
+      if (waiting) return;
+
+      const single = document.getElementById("phone").value.trim();
+      const multi = document.getElementById("multi").value.trim();
+      const message = document.getElementById("message").value.trim();
+
+      if (!message) {
+        alert("Pesan tidak boleh kosong.");
+        return;
+      }
+
+      if (multi) {
+        queue = multi.split(/\r?\n/).filter(n => n.trim() !== "");
+        queueIndex = 0;
+        sendToQueue(message);
+      } else if (single) {
+        openWA(single, message);
+        const seconds = cooldownSequence[cooldownIndex % cooldownSequence.length];
+        cooldownIndex++;
+        startCooldown(seconds);
+      } else {
+        alert("Masukkan satu nomor atau daftar nomor.");
+      }
+    }
+
+    function sendToQueue(msg) {
+      if (queueIndex >= queue.length) {
+        document.getElementById("status").textContent = "Selesai mengirim semua nomor.";
+        return;
+      }
+
+      const number = queue[queueIndex];
+      openWA(number, msg);
+      const seconds = cooldownSequence[cooldownIndex % cooldownSequence.length];
+      cooldownIndex++;
+      queueIndex++;
+      startCooldown(seconds, () => sendToQueue(msg));
+    }
+
+    function openWA(phone, message) {
+      const url = `https://api.whatsapp.com/send?phone=${encodeURIComponent(phone)}&text=${encodeURIComponent(message)}`;
+      window.open(url, "_blank");
+    }
+
+    function startCooldown(duration, callback = null) {
+      waiting = true;
+      const btn = document.getElementById("sendBtn");
+      const status = document.getElementById("status");
+      btn.disabled = true;
+      btn.classList.remove("active");
+      btn.classList.add("inactive");
+
+      let time = duration;
+      updateStatus(time);
+      const countdown = setInterval(() => {
+        time--;
+        updateStatus(time);
+        if (time <= 0) {
+          clearInterval(countdown);
+          waiting = false;
+          status.textContent = "Siap kirim kapan saja";
+          btn.disabled = false;
+          btn.classList.remove("inactive");
+          btn.classList.add("active");
+          if (callback) callback();
+        }
+      }, 1000);
+    }
+
+    function updateStatus(sec) {
+      const min = Math.floor(sec / 60);
+      const sisa = sec % 60;
+      document.getElementById("status").textContent = `Menunggu ${min} menit ${sisa} detik sebelum bisa kirim lagi...`;
+    }
+  </script>
+</body>
+</html>
