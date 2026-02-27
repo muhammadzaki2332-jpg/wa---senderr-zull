@@ -131,6 +131,7 @@
     let cooldownIndex = 0;
     let queue = [];
     let queueIndex = 0;
+    let sendCounter = 0;
 
     window.onload = () => {
       const savedNote = localStorage.getItem('wa_note');
@@ -159,9 +160,12 @@
         sendToQueue(message);
       } else if (single) {
         openWA(single, message);
-        const seconds = cooldownSequence[cooldownIndex % cooldownSequence.length];
-        cooldownIndex++;
-        startCooldown(seconds);
+        sendCounter++;
+        if (sendCounter >= 2) {
+          const seconds = cooldownSequence[cooldownIndex % cooldownSequence.length];
+          cooldownIndex++;
+          startCooldown(seconds);
+        }
       } else {
         alert("Masukkan satu nomor atau daftar nomor.");
       }
@@ -175,10 +179,16 @@
 
       const number = queue[queueIndex];
       openWA(number, msg);
-      const seconds = cooldownSequence[cooldownIndex % cooldownSequence.length];
-      cooldownIndex++;
-      queueIndex++;
-      startCooldown(seconds, () => sendToQueue(msg));
+      sendCounter++;
+      if (sendCounter >= 2) {
+        const seconds = cooldownSequence[cooldownIndex % cooldownSequence.length];
+        cooldownIndex++;
+        queueIndex++;
+        startCooldown(seconds, () => sendToQueue(msg));
+      } else {
+        queueIndex++;
+        sendToQueue(msg);
+      }
     }
 
     function openWA(phone, message) {
